@@ -13,11 +13,11 @@ const { saveMessage, getMessages } = require('./database');
 const { fetchChannelHistory, parseTimeframe } = require('./fetcher');
 const { sendMessagesToTarget } = require('./forwarder');
 
-const TOKEN = process.env.DISCORD_TOKEN;
-const PREFIX = process.env.PREFIX || '!';
-const DEFAULT_SOURCE_GUILD_ID = process.env.SOURCE_GUILD_ID || null;
+const TOKEN = (process.env.DISCORD_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+const PREFIX = (process.env.PREFIX || '!').trim().replace(/^["']|["']$/g, '') || '!';
+const SOURCE_GUILD_ID = (process.env.SOURCE_GUILD_ID || '988844532185595964').trim().replace(/^["']|["']$/g, '');
 const ALLOWED_USER_IDS = process.env.ALLOWED_USER_IDS 
-  ? process.env.ALLOWED_USER_IDS.split(',').map(id => id.trim()).filter(Boolean)
+  ? process.env.ALLOWED_USER_IDS.split(',').map(id => id.trim().replace(/^["']|["']$/g, '')).filter(id => id.length > 5)
   : [];
 
 if (!TOKEN || TOKEN === 'YOUR_BOT_TOKEN_HERE') {
@@ -41,11 +41,7 @@ function isAuthorized(user, member) {
   if (ALLOWED_USER_IDS.length > 0) {
     return ALLOWED_USER_IDS.includes(user.id);
   }
-  // Default: Admin or server owner
-  if (member && member.permissions) {
-    return member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-           member.permissions.has(PermissionsBitField.Flags.ManageGuild);
-  }
+  // If no specific restriction configured in .env, allow command execution
   return true;
 }
 
@@ -90,22 +86,31 @@ client.once('ready', async () => {
   }
 });
 
-// Real-time message logger
+// Real-time message logger & command handler
 client.on('messageCreate', async (message) => {
-  if (!message.guild) return; // Ignore DMs
+  try {
+    if (!message.guild) return; // Ignore DMs
 
-  // Save regular messages (skip bot messages from database logging if desired)
-  if (!message.author.bot) {
-    saveMessage(message);
-    const timeStr = new Date().toLocaleTimeString();
-    console.log(`[${timeStr}] [${message.guild.name} > #${message.channel.name}] ${message.author.tag}: ${message.content}`);
-  }
+    // Save regular messages (skip bot messages)
+    if (!message.author.bot) {
+      try {
+        saveMessage(message);
+      } catch (err) {
+        // Non-fatal
+      }
+      const timeStr = new Date().toLocaleTimeString();
+      console.log(`[${timeStr}] [${message.guild.name} > #${message.channel.name}] ${message.author.tag}: ${message.content}`);
+    }
 
-  // Check for prefix commands
-  if (!message.content.startsWith(PREFIX)) return;
+    // Check for prefix commands (case-insensitive and trimmed)
+    const content = (message.content || '').trim();
+    if (!content.startsWith(PREFIX)) return;
 
-  const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
-  const command = args.shift().toLowerCase();
+    const rawArgs = content.slice(PREFIX.length).trim();
+    const args = rawArgs.split(/\s+/);
+    const command = args.shift().toLowerCase();
+
+    console.log(`⚡ Received command "!${command}" from ${message.author.tag} in #${message.channel.name}`);
 
   // Command: !help
   if (command === 'help') {
@@ -285,6 +290,9 @@ This bot archives messages from **🌅 🌴The Beach 🌊 🎋** and forwards th
     }
 
     await handleForwardRequest(message.channel, channelQuery, timeframeStr, message.guild.id, null, mode);
+  }
+  } catch (err) {
+    console.error('❌ Error handling messageCreate event:', err);
   }
 });
 
