@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ override: true });
 const { 
   Client, 
   GatewayIntentBits, 
@@ -14,7 +14,14 @@ const { fetchChannelHistory, parseTimeframe } = require('./fetcher');
 const { sendMessagesToTarget } = require('./forwarder');
 
 const TOKEN = (process.env.DISCORD_TOKEN || '').trim().replace(/^["']|["']$/g, '');
-const PREFIX = (process.env.PREFIX || '!').trim().replace(/^["']|["']$/g, '') || '!';
+
+// On Termux/Android, $PREFIX is a reserved environment variable for /data/data/com.termux/files/usr.
+// Guard against this so the bot prefix is always the command prefix (e.g. !)
+let rawPrefix = (process.env.BOT_PREFIX || process.env.PREFIX || '!').trim().replace(/^["']|["']$/g, '');
+if (!rawPrefix || rawPrefix.startsWith('/data/') || rawPrefix.startsWith('/usr')) {
+  rawPrefix = '!';
+}
+const PREFIX = rawPrefix;
 const SOURCE_GUILD_ID = (process.env.SOURCE_GUILD_ID || '988844532185595964').trim().replace(/^["']|["']$/g, '');
 const ALLOWED_USER_IDS = process.env.ALLOWED_USER_IDS 
   ? process.env.ALLOWED_USER_IDS.split(',').map(id => id.trim().replace(/^["']|["']$/g, '')).filter(id => id.length > 5)
