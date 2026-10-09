@@ -151,6 +151,8 @@ This bot archives messages from **🌅 🌴The Beach 🌊 🎋** and forwards th
   Search for any channel in The Beach (e.g., \`${PREFIX}search quotes\`).
 • **\`${PREFIX}ping\`**:
   Check bot response speed.
+• **\`${PREFIX}stop\`** / **\`${PREFIX}shutdown\`**:
+  Safely shuts down the running bot instance.
 `;
     await message.reply(helpGuide);
     return;
@@ -159,6 +161,21 @@ This bot archives messages from **🌅 🌴The Beach 🌊 🎋** and forwards th
   // Command: !ping
   if (command === 'ping') {
     await message.reply(`🏓 Pong! Latency: ${client.ws.ping}ms`);
+    return;
+  }
+
+  // Command: !stop / !shutdown
+  if (command === 'stop' || command === 'shutdown' || command === 'exit') {
+    if (!isAuthorized(message.author, message.member)) {
+      await message.reply('❌ You do not have permission to shut down the bot.');
+      return;
+    }
+    await message.reply('🛑 Shutting down bot gracefully. Bye!');
+    console.log(`\n🛑 Bot shutdown requested by ${message.author.tag}. Exiting...`);
+    setTimeout(() => {
+      client.destroy();
+      process.exit(0);
+    }, 800);
     return;
   }
 
