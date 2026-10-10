@@ -280,6 +280,94 @@ This bot archives messages from **🌅 🌴The Beach 🌊 🎋** and forwards th
     return;
   }
 
+    
+    // Command: !logs <timeframe>
+    if (command === 'logs') {
+      if (!isAuthorized(message.author, message.member)) {
+        await message.reply('❌ You do not have permission to run this command.');
+        return;
+      }
+
+      const sourceGuild = client.guilds.cache.get(SOURCE_GUILD_ID);
+      if (!sourceGuild) {
+        await message.reply('❌ Source server not found.');
+        return;
+      }
+
+      const timeframe = args[0] || '1h';
+      const match = timeframe.match(/^(\d+)(m|h|d|w)$/i);
+
+      if (!match) {
+        await message.reply('Usage: `!logs 1h`, `!logs 24h`, `!logs 7d`');
+        return;
+      }
+
+      const amount = Number(match[1]);
+      const unit = match[2].toLowerCase();
+      const multipliers = {
+        m: 60 * 1000,
+        h: 60 * 60 * 1000,
+        d: 24 * 60 * 60 * 1000,
+        w: 7 * 24 * 60 * 60 * 1000
+      };
+
+      const after = Date.now() - amount * multipliers[unit];
+
+      try {
+        const audit = await sourceGuild.fetchAuditLogs({ limit: 100 });
+        const entries = [...audit.entries.values()]
+          .filter(entry => entry.createdTimestamp >= after)
+          .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+        if (!entries.length) {
+          await message.reply(
+            `No audit-log entries found in the last ${timeframe}.`
+          );
+          return;
+        }
+
+        const lines = entries.map(entry => {
+          const actor = entry.executor
+            ? `${entry.executor.tag} (${entry.executor.id})`
+            : 'Unknown actor';
+
+          const target = entry.target
+            ? `${entry.target.tag || entry.target.name || entry.target.id}`
+            : 'No target';
+
+          const reason = entry.reason || 'No reason supplied';
+
+          return [
+            `**${entry.action}**`,
+            `Actor: ${actor}`,
+            `Target: ${target}`,
+            `Time: <t:${Math.floor(entry.createdTimestamp / 1000)}:R>`,
+            `Reason: ${reason}`
+          ].join('\n');
+        });
+
+        let chunk = `📋 **Source server audit logs — last ${timeframe}**\n\n`;
+
+        for (const line of lines) {
+          if ((chunk + line + '\n\n').length > 1850) {
+            await message.channel.send(chunk);
+            chunk = '';
+          }
+          chunk += line + '\n\n';
+        }
+
+        if (chunk.trim()) await message.channel.send(chunk);
+      } catch (error) {
+        console.error('Audit log fetch failed:', error);
+        await message.reply(
+          '❌ Could not fetch audit logs. Check the bot has View Audit Log permission on the source server.'
+        );
+      }
+
+      return;
+    }
+    
+    
   // Command: !forward
   if (command === 'forward' || command === 'sync' || command === 'fetch') {
     if (!isAuthorized(message.author, message.member)) {
